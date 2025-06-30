@@ -1,6 +1,34 @@
-# YouTube Automation Pipeline
+# 🚀 AutoYT-Advance: Ultra-Intelligent YouTube Automation Pipeline
 
-A fully automated pipeline for generating and uploading high-quality YouTube videos using AI. This system creates engaging content with ultra-high quality images, professional audio, and seamless video assembly.
+## ⚡ **The Most Advanced AI-Powered Video Generation System**
+
+**AutoYT-Advance** is a revolutionary, **enterprise-grade YouTube automation pipeline** that creates **cinema-quality videos** with **zero human intervention**. This isn't just automation—it's **AI orchestration** at its finest.
+
+### 🎯 **What Makes This Extraordinary?**
+
+🧠 **AI Director**: Advanced scene detection with emotional arc analysis  
+🎨 **Ultra-Quality Visuals**: ComfyUI integration for **2K+ resolution** images  
+🗣️ **Professional Narration**: ElevenLabs with **natural Hindi/English** synthesis  
+🎵 **Smart Music Selection**: Content-aware background music with **dynamic volume**  
+🔄 **Self-Improving**: Automated feedback loops with **quality optimization**  
+📊 **Cost-Effective**: **$0.50-1.39 per video** vs $100-500 traditional production  
+⚡ **Lightning Fast**: **95% time savings** - 15 minutes vs 8-16 hours  
+🗂️ **Production-Ready**: Enterprise folder structure with **security built-in**
+
+### 🌟 **Unique Advanced Features**
+
+- **🤖 AI Scene Detection**: Automatically identifies optimal scene breaks using GPT-4
+- **🎬 Dynamic Pacing**: Adapts scene duration based on content complexity and emotion
+- **🔍 Quality Control**: Multi-stage AI quality assessment with automatic regeneration
+- **📈 Retention Optimization**: Strategic engagement hooks for maximum viewer retention
+- **🎭 Emotional Intelligence**: Semantic analysis for mood-appropriate music selection
+- **🖼️ Metaphor-Rich Visuals**: Advanced prompt engineering for cinematic storytelling
+- **📱 Caption System**: Burned-in subtitles with Hindi/English font optimization
+- **🔧 Video Interpolation**: RIFE/DAIN frame interpolation for smooth transitions
+
+> **For Basic YouTube Automation**: Check out our simpler pipeline at [ispeedbiz/autoyt](https://github.com/ispeedbiz/autoyt) 
+> 
+> **For Enterprise-Grade AI Production**: You're in the right place! 🎬
 
 ## 🚀 Recent Updates & Fixes
 
@@ -145,11 +173,40 @@ brew install imagemagick ffmpeg  # macOS
 # sudo apt-get install imagemagick ffmpeg  # Ubuntu/Debian
 ```
 
-### **2. Python Environment Setup**
+### **2. ComfyUI Setup (Ultra-Quality Image Generation)**
+
+**⚠️ CRITICAL: ComfyUI server must be running before executing main.py**
+
+```bash
+# Install ComfyUI (one-time setup)
+git clone https://github.com/comfyanonymous/ComfyUI.git
+cd ComfyUI
+
+# Install ComfyUI dependencies
+pip install -r requirements.txt
+
+# Download SDXL model (required for ultra-quality)
+# Place in: ComfyUI/models/checkpoints/
+wget https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
+
+# Start ComfyUI server (MUST be running during video generation)
+python main.py --listen 127.0.0.1 --port 8188
+
+# Keep this terminal open - server must stay running!
+# Access ComfyUI interface: http://127.0.0.1:8188
+```
+
+**🚨 Before Running main.py:**
+1. ✅ Start ComfyUI server: `python main.py` in ComfyUI folder
+2. ✅ Verify server running: Visit http://127.0.0.1:8188
+3. ✅ Check model loaded: SDXL should appear in ComfyUI interface
+4. ✅ Test workflow: Load `workflow/prompt_ultra_quality.json`
+
+### **3. Python Environment Setup**
 ```bash
 # Clone repository
-git clone <repository-url>
-cd Youtube_auto
+git clone https://github.com/ispeedbiz/AutoYT-Advance.git
+cd AutoYT-Advance
 
 # Create Python 3.11 virtual environment
 python3.11 -m venv venv311
@@ -184,12 +241,37 @@ python verify_setup.py
 ## 🎬 Usage
 
 ### **Basic Usage**
+
+**🔥 Quick Start (2 Terminal Setup):**
+
+**Terminal 1 - Start ComfyUI Server:**
 ```bash
-# Activate environment
+cd ComfyUI
+python main.py --listen 127.0.0.1 --port 8188
+# Keep this running! ✅ Server must stay active
+```
+
+**Terminal 2 - Run Video Generation:**
+```bash
+cd AutoYT-Advance
 source venv311/bin/activate
 
-# Run pipeline
+# Verify ComfyUI is running
+curl http://127.0.0.1:8188 || echo "❌ Start ComfyUI first!"
+
+# Run the pipeline
 python main.py
+```
+
+**⚡ Pro Tip:** Set up ComfyUI as a service for automatic startup:
+```bash
+# Create systemd service (Linux)
+sudo nano /etc/systemd/system/comfyui.service
+
+# Or use screen/tmux for persistent sessions
+screen -S comfyui
+cd ComfyUI && python main.py --listen 127.0.0.1 --port 8188
+# Ctrl+A, D to detach
 ```
 
 ### **Caption Features**
@@ -291,6 +373,22 @@ Youtube_auto/
 - **Problem**: `ModuleNotFoundError: No module named 'moviepy.editor'`
 - **Solution**: Use Python 3.11 + moviepy 1.0.3
 - **Command**: `pip install moviepy==1.0.3`
+
+### **ComfyUI Issues**
+- **Problem**: `Connection refused` or `ComfyUI not responding`
+- **Solution**: 
+  ```bash
+  # Check if ComfyUI server is running
+  curl http://127.0.0.1:8188 || echo "ComfyUI server not running"
+  
+  # Restart ComfyUI server
+  cd ComfyUI
+  python main.py --listen 127.0.0.1 --port 8188
+  ```
+- **Problem**: `Model not loaded` or generation fails
+- **Solution**: Ensure SDXL model is in `ComfyUI/models/checkpoints/`
+- **Problem**: `Image generation timeout`
+- **Solution**: Increase `max_wait_sec` in `comfyui_integration/generate_image.py`
 
 ### **Caption Issues**
 - **Problem**: `ImageMagick not found`
