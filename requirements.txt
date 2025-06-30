@@ -1,0 +1,34 @@
+# Core dependencies
+openai>=1.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+Pillow>=10.0.0
+google-auth-oauthlib>=1.0.0
+google-api-python-client>=2.0.0
+
+# Audio processing
+pydub>=0.25.1
+elevenlabs>=0.2.0
+
+# Video processing
+moviepy>=1.0.3
+
+# Advanced AI features
+numpy>=1.24.0
+
+# Development and testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Optional: For enhanced image generation
+# comfyui-api-client>=0.1.0  # Uncomment if using ComfyUI
+
+gspread
+google-auth-httplib2
+google-auth
+tqdm
+websockets
+httpx
+opencv-python
+
+

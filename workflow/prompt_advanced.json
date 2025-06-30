@@ -1,0 +1,93 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": "sd_xl_base_1.0.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "2": {
+    "inputs": {
+      "text": "Studio Ghibli style prompt",
+      "clip": ["1", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive Prompt"
+    }
+  },
+  "3": {
+    "inputs": {
+      "text": "text, watermark, signature, border, frame, lowres, bad anatomy, jpeg artifacts, blurry, distorted",
+      "clip": ["1", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative Prompt"
+    }
+  },
+  "4": {
+    "inputs": {
+      "width": 1024,
+      "height": 576,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Latent Image"
+    }
+  },
+  "5": {
+    "inputs": {
+      "seed": 42,
+      "steps": 40,
+      "cfg": 7.5,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": ["1", 0],
+      "positive": ["2", 0],
+      "negative": ["3", 0],
+      "latent_image": ["4", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "Main Sampler"
+    }
+  },
+  "6": {
+    "inputs": {
+      "samples": ["5", 0],
+      "vae": ["1", 2]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "7": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": 1920,
+      "height": 1080,
+      "crop": "center",
+      "image": ["6", 0]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Upscale to 1080p"
+    }
+  },
+  "8": {
+    "inputs": {
+      "filename_prefix": "YouTube_Scene",
+      "images": ["7", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Final Image"
+    }
+  }
+} 
