@@ -171,7 +171,20 @@ class AISceneDetector:
         """
         Create a default analysis when AI fails.
         """
-        target_scenes = max(3, int(target_duration_minutes * 2))  # 2 scenes per minute
+        # Dynamic scene calculation based on video duration
+        # For videos 1-3 minutes: ~2 scenes per minute
+        # For videos 3-10 minutes: ~1.5 scenes per minute  
+        # For videos 10+ minutes: ~1 scene per minute
+        if target_duration_minutes <= 3:
+            scenes_per_minute = 2.0
+        elif target_duration_minutes <= 10:
+            scenes_per_minute = 1.5
+        else:
+            scenes_per_minute = 1.0
+        
+        target_scenes = max(3, int(target_duration_minutes * scenes_per_minute))
+        print(f"   🎬 Dynamic scene fallback: {target_duration_minutes} minutes = {target_scenes} scenes ({scenes_per_minute} scenes/min)")
+        
         sentences_per_scene = max(1, len(sentences) // target_scenes)
         
         suggested_scenes = []

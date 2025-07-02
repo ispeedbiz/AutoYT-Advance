@@ -200,34 +200,74 @@ class VideoInterpolator:
             True if successful, False otherwise
         """
         try:
-            # Create interpolated video without audio
-            temp_video = output_path.replace('.mp4', '_temp.mp4')
+            # FIXED: Create video that matches audio duration instead of using interpolation
+            print(f"🎬 Video interpolation: Creating slideshow for {len(image_paths)} images")
             
-            if not self.interpolate_frames(image_paths, temp_video, transition_duration):
+            # Get audio duration first
+            import subprocess
+            duration_cmd = [
+                "ffprobe", "-v", "quiet", "-show_entries", "format=duration", 
+                "-of", "csv=p=0", audio_path
+            ]
+            duration_result = subprocess.run(duration_cmd, capture_output=True, text=True)
+            
+            if duration_result.returncode != 0:
+                self.logger.error(f"Could not get audio duration: {audio_path}")
                 return False
             
-            # Combine with audio using ffmpeg
+            audio_duration = float(duration_result.stdout.strip())
+            print(f"   Audio duration: {audio_duration:.1f} seconds")
+            
+            # Calculate duration per image
+            duration_per_image = audio_duration / len(image_paths)
+            print(f"   Duration per image: {duration_per_image:.1f} seconds")
+            
+            # Create video directly with proper duration using ffmpeg
+            # Create a concat file for images
+            temp_concat_file = output_path.replace('.mp4', '_concat.txt')
+            
+            with open(temp_concat_file, 'w') as f:
+                for i, image_path in enumerate(image_paths):
+                    # FIXED: Use absolute path to avoid path issues
+                    abs_image_path = os.path.abspath(image_path)
+                    f.write(f"file '{abs_image_path}'\n")
+                    if i < len(image_paths) - 1:  # All but last image get duration
+                        f.write(f"duration {duration_per_image}\n")
+                # Last image doesn't need duration (it will use remaining time)
+                # No need to add the last image again
+            
+            # Create video with proper timing
             cmd = [
                 "ffmpeg", "-y",
-                "-i", temp_video,
+                "-f", "concat",
+                "-safe", "0",
+                "-i", temp_concat_file,
                 "-i", audio_path,
-                "-c:v", "copy",
+                "-c:v", "libx264",
                 "-c:a", "aac",
-                "-shortest",
+                "-pix_fmt", "yuv420p",
+                "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+                "-r", "24",  # 24 fps
                 output_path
             ]
             
-            subprocess.run(cmd, check=True, capture_output=True)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
             
             # Clean up temporary file
-            if os.path.exists(temp_video):
-                os.remove(temp_video)
+            if os.path.exists(temp_concat_file):
+                os.remove(temp_concat_file)
             
-            self.logger.info(f"Smooth slideshow created: {output_path}")
+            self.logger.info(f"Slideshow created: {output_path}")
+            print(f"✅ Video interpolation slideshow created successfully")
             return True
             
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"ffmpeg failed: {e.stderr}")
+            print(f"❌ Video interpolation failed: ffmpeg error")
+            return False
         except Exception as e:
             self.logger.error(f"Failed to create smooth slideshow: {e}")
+            print(f"❌ Video interpolation failed: {e}")
             return False
     
     def enhance_existing_video(self, video_path: str, output_path: str, 

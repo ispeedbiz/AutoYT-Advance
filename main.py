@@ -16,13 +16,13 @@ import openai
 from dotenv import load_dotenv
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-from prompt_utils import generate_scene_plan_and_prompts, generate_simple_visual_prompts
+from prompt_utils import generate_scene_plan_and_prompts, generate_simple_visual_prompts, generate_dynamic_thumbnail_prompt, generate_metaphor_rich_prompts
 from utils import (
     load_env, get_video_folder, save_text_to_file, generate_thumbnail,
     sanitize_folder_name, split_script_into_blocks, generate_ai_image,
     make_slideshow_video, generate_images_from_script, text_to_mp3_block, IMAGE_STYLES,
     generate_scene_images_for_script, split_script_into_blocks_improved, generate_viral_scene_images,
-    generate_metaphor_rich_prompts, split_script_by_duration
+    split_script_by_duration
 )
 
 # Import new advanced features
@@ -216,23 +216,91 @@ def text_to_mp3(script, env, folder):
 
     if not PYDUB_AVAILABLE:
         print("⚠️ pydub not available, using basic TTS without audio processing")
-        # Basic TTS without audio processing
+        # Basic TTS without audio processing - FIXED: Process ALL sentences, not just first one
         parts = split_sentences(script)
         output_path = folder / "voice.mp3"
         
-        # Just use the first part for basic TTS
+        # Process ALL parts using ffmpeg to concatenate
         if parts:
-            r = requests.post(
-                f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
-                headers={"xi-api-key": env["ELEVENLABS_API_KEY"]},
-                json={"text": parts[0], "voice_settings": {"stability": 0.4, "similarity_boost": 0.7}}
-            )
-            if r.status_code == 200:
-                with open(output_path, "wb") as f:
-                    f.write(r.content)
-                return output_path
+            temp_files = []
+            
+            # Generate audio for each sentence
+            for i, part in enumerate(parts):
+                if not part.strip():
+                    continue
+                    
+                temp_file = folder / f"temp_part_{i}.mp3"
+                
+                r = requests.post(
+                    f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                    headers={"xi-api-key": env["ELEVENLABS_API_KEY"]},
+                    json={"text": part, "voice_settings": {"stability": 0.4, "similarity_boost": 0.7}}
+                )
+                
+                if r.status_code == 200:
+                    with open(temp_file, "wb") as f:
+                        f.write(r.content)
+                    temp_files.append(str(temp_file))
+                else:
+                    print(f"⚠️ ElevenLabs API error for part {i}: {r.status_code} - {r.text}")
+                    continue
+            
+            if temp_files:
+                # Use ffmpeg to concatenate audio files with 1 second pause between parts
+                import subprocess
+                
+                # Create a file list for ffmpeg concat
+                concat_file = folder / "concat_list.txt"
+                with open(concat_file, 'w') as f:
+                    for i, temp_file in enumerate(temp_files):
+                        f.write(f"file '{temp_file}'\n")
+                        if i < len(temp_files) - 1:  # Add silence between parts except last
+                            # Create a 1-second silence file
+                            silence_file = folder / f"silence_{i}.mp3"
+                            subprocess.run([
+                                "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100", 
+                                "-t", "1", str(silence_file)
+                            ], check=True, capture_output=True)
+                            f.write(f"file '{silence_file}'\n")
+                
+                # Concatenate all files
+                try:
+                    subprocess.run([
+                        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
+                        "-c", "copy", str(output_path)
+                    ], check=True, capture_output=True)
+                    
+                    # Clean up temporary files
+                    for temp_file in temp_files:
+                        try:
+                            os.remove(temp_file)
+                        except:
+                            pass
+                    
+                    # Clean up silence files
+                    for silence_file in folder.glob("silence_*.mp3"):
+                        try:
+                            os.remove(silence_file)
+                        except:
+                            pass
+                    
+                    os.remove(concat_file)
+                    
+                    print(f"✅ Combined {len(temp_files)} audio parts using ffmpeg")
+                    return output_path
+                    
+                except subprocess.CalledProcessError as e:
+                    print(f"⚠️ ffmpeg concatenation failed: {e}")
+                    # Fallback: use first audio file
+                    if temp_files:
+                        import shutil
+                        shutil.copy(temp_files[0], output_path)
+                        print(f"⚠️ Using first audio part as fallback")
+                        return output_path
+                    else:
+                        raise Exception("No audio parts generated successfully")
             else:
-                raise Exception(f"ElevenLabs API error: {r.status_code} - {r.text}")
+                raise Exception("No audio parts generated successfully")
         else:
             raise Exception("No text to convert to speech")
     
@@ -276,8 +344,9 @@ def add_background(narration_path, folder):
     from music_selector import MusicSelector, DynamicAudioProcessor
     from semantic_analyzer import SemanticAnalyzer
     
-    # Path to the final audio file with background music
-    output_path = folder / "final_audio.mp3"
+    # FIXED: Path to the final audio file with background music in audio folder
+    audio_folder = folder / "audio"
+    output_path = audio_folder / "final_audio.mp3"
     
     try:
         # Initialize music selector and audio processor
@@ -560,7 +629,7 @@ def process(row_num, row_data, ws, env):
         print(f"🎬 Target video duration: {target_duration_minutes:.1f} minutes")
         
         # Use duration-aware script splitting
-        script_blocks = split_script_by_duration(script_text, target_duration_minutes, max_scene_duration=20)
+        script_blocks = split_script_by_duration(script_text, target_duration_minutes)
         num_blocks = len(script_blocks)
         print(f"📝 Script split into {num_blocks} duration-optimized blocks for image/audio alignment.")
 
@@ -569,7 +638,8 @@ def process(row_num, row_data, ws, env):
             image_prompts = generate_metaphor_rich_prompts(
                 script_text=script_text,
                 num_scenes=len(script_blocks),
-                openai_api_key=env["OPENAI_API_KEY"]
+                openai_api_key=env["OPENAI_API_KEY"],
+                script_blocks=script_blocks  # FIXED: Pass the same blocks we created
             )
             if len(image_prompts) != len(script_blocks):
                 print("⚠️ LLM prompt count mismatch, falling back to simple LLM prompts.")
@@ -600,87 +670,50 @@ def process(row_num, row_data, ws, env):
                         print(f"⚠️ Block and prompt are identical for scene {i+1} (template fallback). Flagging for review.")
 
         # 5. Image generation with automated feedback loop (skip if exists)
+        # PATCH: Generate both wide and close-up images for each scene in final_output
+        from comfyui_integration.generate_image import generate_image
+        from prompt_utils import generate_metaphor_rich_prompts
+        final_output_folder = video_folder / "final_output"
         image_paths = []
-        images_folder = video_folder / "images"
-        prompts_folder = video_folder / "prompts"
         for i, (block, prompt) in enumerate(zip(script_blocks, image_prompts)):
-            image_path = images_folder / f"scene_{i+1:02d}.png"
-            prompt_path = prompts_folder / f"scene_{i+1:02d}_final_prompt.txt"
-            
-            with open(prompt_path, 'w', encoding='utf-8') as f:
-                f.write(f"Block: {block}\nPrompt: {prompt}\n")
-            
-            if image_path.exists():
-                print(f"✅ Image already exists: {image_path}, skipping generation.")
-                image_paths.append(str(image_path))
-                continue
-            
-            # Use automated feedback loop if available
-            if feedback_loop:
-                print(f"🔄 Generating image {i+1} with automated feedback loop...")
-                from comfyui_integration.generate_image import generate_image
-                
-                def image_generator(prompt_text, output_path):
-                    return generate_image(
-                        prompt_text=prompt_text,
-                        out_file=output_path,
-                        negative_prompt="",
-                        max_wait_sec=900,
-                        quality="ultra"
-                    )
-                
-                success, final_image_path, feedback_data = feedback_loop.run_image_quality_loop(
-                    str(image_path), prompt, block, image_generator
-                )
-                
-                # Save feedback report
-                feedback_report_path = video_folder / f"scene_{i+1:02d}_feedback_report.json"
-                feedback_loop.save_feedback_report(str(feedback_report_path), feedback_data)
-                
-                if success:
-                    print(f"✅ Image {i+1} generated successfully with feedback loop")
-                    image_paths.append(str(image_path))
-                else:
-                    print(f"⚠️ Image {i+1} failed quality threshold after feedback loop")
-                    image_paths.append(str(image_path))  # Still use the image
+            # Generate two prompts: wide and close-up
+            prompts = generate_metaphor_rich_prompts(
+                script_text=block,
+                num_scenes=2,
+                openai_api_key=env["OPENAI_API_KEY"],
+                script_blocks=[block, block],
+                topic=data.get('topic', ''),
+                tone=data.get('tone', '')
+            )
+            wide_prompt = prompts[0].replace("close-up", "wide establishing shot")
+            close_prompt = prompts[1].replace("wide establishing shot", "close-up with emotional focus")
+            wide_img_path = final_output_folder / f"scene_{i+1:02d}_wide.png"
+            close_img_path = final_output_folder / f"scene_{i+1:02d}_close.png"
+            # Generate wide image if not exists
+            if not wide_img_path.exists():
+                print(f"🎨 Generating wide image for scene {i+1}: {wide_img_path}")
+                generate_image(prompt_text=wide_prompt, out_file=str(wide_img_path), negative_prompt="", max_wait_sec=900, quality="ultra")
             else:
-                # Traditional image generation
-                from comfyui_integration.generate_image import generate_image
-                success = generate_image(
-                    prompt_text=prompt,
-                    out_file=str(image_path),
-                    negative_prompt="",  # already included in prompt
-                    max_wait_sec=900,
-                    quality="ultra"  # Use ultra-quality for best results
-                )
-                
-                # Quality check after image generation
-                if success and os.path.exists(image_path):
-                    try:
-                        from quality_filter import QualityFilter
-                        quality_filter = QualityFilter(env["OPENAI_API_KEY"])
-                        quality_pass, confidence, reasoning, recommendations = quality_filter.comprehensive_quality_check(
-                            str(image_path), prompt, block, quality_threshold=0.6
-                        )
-                        if quality_pass:
-                            print(f"✅ Image {i+1} passed quality check (confidence: {confidence:.2f})")
-                            image_paths.append(str(image_path))
-                        else:
-                            print(f"⚠️ Image {i+1} failed quality check (confidence: {confidence:.2f})")
-                            print(f"   Issues: {recommendations}")
-                            image_paths.append(str(image_path))
-                    except Exception as e:
-                        print(f"⚠️ Quality check failed for image {i+1}: {e}")
-                        image_paths.append(str(image_path))
-                else:
-                    print(f"❌ Image generation failed for block {i+1}")
-            
+                print(f"✅ Wide image already exists: {wide_img_path}")
+            # Generate close-up image if not exists
+            if not close_img_path.exists():
+                print(f"🎨 Generating close-up image for scene {i+1}: {close_img_path}")
+                generate_image(prompt_text=close_prompt, out_file=str(close_img_path), negative_prompt="", max_wait_sec=900, quality="ultra")
+            else:
+                print(f"✅ Close-up image already exists: {close_img_path}")
+            image_paths.append(str(wide_img_path))
+            # Optionally, save prompt info for debugging
+            prompts_folder = video_folder / "prompts"
+            prompts_folder.mkdir(exist_ok=True)
+            prompt_path = prompts_folder / f"scene_{i+1:02d}_final_prompt.txt"
+            with open(prompt_path, 'w', encoding='utf-8') as f:
+                f.write(f"Block: {block}\nWide Prompt: {wide_prompt}\nClose Prompt: {close_prompt}\n")
             # Save feedback file for user/team
             feedback_folder = video_folder / "feedback"
             feedback_folder.mkdir(exist_ok=True)
             feedback_path = feedback_folder / f"scene_{i+1:02d}_feedback.txt"
             with open(feedback_path, 'w', encoding='utf-8') as f:
-                f.write(f"Block: {block}\nPrompt: {prompt}\nImage: {image_path}\nFeedback: \n")
+                f.write(f"Block: {block}\nWide Prompt: {wide_prompt}\nClose Prompt: {close_prompt}\nWide Image: {wide_img_path}\nClose Image: {close_img_path}\nFeedback: \n")
 
         # 6. Audio block generation with automated feedback loop (skip if exists)
         audio_paths = []
@@ -732,13 +765,66 @@ def process(row_num, row_data, ws, env):
                         combined_audio += audio_segment + AudioSegment.silent(duration=1000)  # 1s pause between blocks
                 combined_audio.export(narration_path, format="mp3")
             else:
-                print("⚠️ pydub not available, using first audio block as narration")
-                if audio_paths and os.path.exists(audio_paths[0]):
-                    import shutil
-                    shutil.copy(audio_paths[0], narration_path)
-                else:
-                    print("❌ No audio blocks available")
+                print("⚠️ pydub not available, using ffmpeg to combine audio blocks")
+                # FIXED: Combine ALL audio blocks using ffmpeg, not just the first one
+                valid_audio_paths = [path for path in audio_paths if os.path.exists(path)]
+                
+                if not valid_audio_paths:
+                    print("❌ No valid audio blocks available")
                     return
+                elif len(valid_audio_paths) == 1:
+                    # Only one audio file, just copy it
+                    import shutil
+                    shutil.copy(valid_audio_paths[0], narration_path)
+                    print(f"✅ Copied single audio block: {valid_audio_paths[0]}")
+                else:
+                    # Multiple audio files, combine them with ffmpeg
+                    try:
+                        import subprocess
+                        
+                        # Create a file list for ffmpeg concat
+                        concat_file = audio_folder / "audio_concat_list.txt"
+                        with open(concat_file, 'w') as f:
+                            for i, audio_path in enumerate(valid_audio_paths):
+                                f.write(f"file '{audio_path}'\n")
+                                if i < len(valid_audio_paths) - 1:  # Add silence between blocks except last
+                                    # Create a 1-second silence file
+                                    silence_file = audio_folder / f"block_silence_{i}.mp3"
+                                    subprocess.run([
+                                        "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100", 
+                                        "-t", "1", str(silence_file)
+                                    ], check=True, capture_output=True)
+                                    f.write(f"file '{silence_file}'\n")
+                        
+                        # Concatenate all audio files
+                        subprocess.run([
+                            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
+                            "-c", "copy", str(narration_path)
+                        ], check=True, capture_output=True)
+                        
+                        # Clean up silence files
+                        for silence_file in audio_folder.glob("block_silence_*.mp3"):
+                            try:
+                                os.remove(silence_file)
+                            except:
+                                pass
+                        
+                        os.remove(concat_file)
+                        
+                        print(f"✅ Combined {len(valid_audio_paths)} audio blocks using ffmpeg")
+                        
+                    except subprocess.CalledProcessError as e:
+                        print(f"⚠️ ffmpeg audio concatenation failed: {e}")
+                        # Fallback: use first audio file
+                        import shutil
+                        shutil.copy(valid_audio_paths[0], narration_path)
+                        print(f"⚠️ Using first audio block as fallback: {valid_audio_paths[0]}")
+                    except Exception as e:
+                        print(f"⚠️ Audio combination failed: {e}")
+                        # Fallback: use first audio file
+                        import shutil
+                        shutil.copy(valid_audio_paths[0], narration_path)
+                        print(f"⚠️ Using first audio block as fallback: {valid_audio_paths[0]}")
 
         # 8. Final audio with background (skip if exists)
         final_audio_path = audio_folder / "final_audio.mp3"
@@ -750,28 +836,31 @@ def process(row_num, row_data, ws, env):
 
         # 9. Thumbnail generation (skip if exists)
         thumbnails_folder = video_folder / "thumbnails"
-        thumb_final_path = thumbnails_folder / "thumbnail_final.jpg"
-        if thumb_final_path.exists():
-            print(f"✅ Thumbnail already exists: {thumb_final_path}, skipping.")
+        thumb_a_path = thumbnails_folder / "thumbnail_A.jpg"
+        thumb_b_path = thumbnails_folder / "thumbnail_B.jpg"
+        thumb_img_a_path = thumbnails_folder / "thumbnail_img_A.jpg"
+        thumb_img_b_path = thumbnails_folder / "thumbnail_img_B.jpg"
+        if thumb_a_path.exists() and thumb_b_path.exists():
+            print(f"✅ Thumbnails already exist: {thumb_a_path}, {thumb_b_path}, skipping.")
         else:
-            # Use LLM-generated thumbnail concept if available
-            if LLM_VIDEO_GENERATION_AVAILABLE and 'video_plan' in locals() and video_plan:
-                thumbnail_concept = video_plan.get("thumbnail_concept", {})
-                if thumbnail_concept:
-                    thumb_prompt = thumbnail_concept.get("ai_prompt", f"{data['topic']}, bold, clean background, cartoon illustration, vibrant, no text, no watermark")
-                else:
-                    thumb_prompt = f"{data['topic']}, bold, clean background, cartoon illustration, vibrant, no text, no watermark"
-            else:
-                thumb_prompt = f"{data['topic']}, bold, clean background, cartoon illustration, vibrant, no text, no watermark"
-            
-            thumb_img_path = thumbnails_folder / "thumbnail.jpg"
-            if not thumb_img_path.exists():
-                generate_ai_image(thumb_prompt, env["OPENAI_API_KEY"], thumb_img_path)
-            generate_thumbnail(
-                title=data['title'],
-                img_url=str(thumb_img_path),
-                output_path=thumb_final_path
-            )
+            from prompt_utils import generate_dynamic_thumbnail_prompt
+            from comfyui_integration.generate_image import generate_image
+            # Generate dynamic, content-aware prompts for A and B
+            thumb_prompt_a = generate_dynamic_thumbnail_prompt(data['topic'], script_text, data['tone'])
+            thumb_prompt_b = generate_dynamic_thumbnail_prompt(data['topic'] + ' alternate', script_text, data['tone'])
+            # Use ComfyUI/SDXL backend for both thumbnails
+            if not thumb_img_a_path.exists():
+                generate_image(prompt_text=thumb_prompt_a, out_file=str(thumb_img_a_path), negative_prompt="", max_wait_sec=900, quality="ultra")
+            if not thumb_img_b_path.exists():
+                generate_image(prompt_text=thumb_prompt_b, out_file=str(thumb_img_b_path), negative_prompt="", max_wait_sec=900, quality="ultra")
+            # Use the same text style/colors for both
+            from enhance_thumbnail import draw_thumbnail_text
+            draw_thumbnail_text(str(thumb_img_a_path), data['title'], thumb_a_path)
+            draw_thumbnail_text(str(thumb_img_b_path), data['title'], thumb_b_path)
+
+        # DIAGNOSTICS: Check video duration issues before creating video
+        print(f"\n🔍 Running diagnostics before video creation...")
+        diagnose_video_duration_issues(audio_paths, image_paths, script_blocks, video_folder)
 
         # 10. Final video with advanced features (skip if exists)
         final_output_folder = video_folder / "final_output"
@@ -779,11 +868,42 @@ def process(row_num, row_data, ws, env):
         if video_out.exists():
             print(f"✅ Final video already exists: {video_out}, skipping.")
         else:
-            # Always use final_audio.mp3 as the audio source
-            print(f"🎵 Using audio file for final video: {final_audio_path}")
-            # Try video interpolation first if available
-            if VIDEO_INTERPOLATION_AVAILABLE and create_interpolated_video is not None:
-                print("🎬 Creating video with frame interpolation...")
+            # Prefer cinematic scene-based slideshow for slow zoom/pan effect
+            if MOVIEPY_AVAILABLE:
+                from utils import create_scene_based_slideshow_video, create_single_audio_slideshow_video
+
+                if len(audio_paths) == len(script_blocks):
+                    print("🎬 Creating cinematic scene-based slideshow (Ken Burns zoom/pan)")
+                    create_scene_based_slideshow_video(
+                        image_paths,  # legacy, kept for compatibility
+                        audio_paths,
+                        video_out,
+                        script_blocks=script_blocks,
+                        topic=data.get('topic', ''),
+                        tone=data.get('tone', ''),
+                        openai_api_key=env["OPENAI_API_KEY"]
+                    )
+                else:
+                    print("🎬 Block/audio mismatch – falling back to single-audio slideshow")
+                    create_single_audio_slideshow_video(image_paths, str(final_audio_path), video_out)
+
+                # If, for any reason, the cinematic method did not produce the video, try interpolation as a fallback
+                if not video_out.exists() and VIDEO_INTERPOLATION_AVAILABLE and create_interpolated_video is not None:
+                    print("🔄 Cinematic method failed; attempting frame interpolation slideshow as fallback …")
+                    success = create_interpolated_video(
+                        image_paths=image_paths,
+                        audio_path=str(final_audio_path),
+                        output_path=str(video_out),
+                        interpolation_method="rife"
+                    )
+                    if success:
+                        print("✅ Video created with frame interpolation fallback")
+                    else:
+                        print("❌ All video creation methods failed.")
+
+            elif VIDEO_INTERPOLATION_AVAILABLE and create_interpolated_video is not None:
+                # moviepy unavailable, but interpolation might still work
+                print("🎬 moviepy unavailable – creating slideshow with frame interpolation fallback")
                 success = create_interpolated_video(
                     image_paths=image_paths,
                     audio_path=str(final_audio_path),
@@ -793,18 +913,12 @@ def process(row_num, row_data, ws, env):
                 if success:
                     print("✅ Video created with frame interpolation")
                 else:
-                    print("⚠️ Video interpolation failed, falling back to traditional method")
-                    if MOVIEPY_AVAILABLE:
-                        make_slideshow_video(image_paths, [str(final_audio_path)], video_out)
-                    else:
-                        print("⚠️ moviepy not available, skipping video creation. Please use Python 3.11/3.12 for full video support.")
-            elif MOVIEPY_AVAILABLE:
-                make_slideshow_video(image_paths, [str(final_audio_path)], video_out)
+                    print("❌ Video creation failed (no available method)")
             else:
                 print("⚠️ moviepy not available, skipping video creation. Please use Python 3.11/3.12 for full video support.")
 
-        # 11. Upload video to YouTube with the custom thumbnail
-        video_url = yt_upload(video_out, thumb_final_path, data) if MOVIEPY_AVAILABLE and video_out.exists() else None
+        # 11. Upload video to YouTube with the custom thumbnail (use A by default)
+        video_url = yt_upload(video_out, thumb_a_path, data) if MOVIEPY_AVAILABLE and video_out.exists() else None
         if video_url:
             batch_update(ws, row_num, " ✅ Posted", video_url, "", f"{int(time.time()-start_time)}s")
 
@@ -816,6 +930,91 @@ def process(row_num, row_data, ws, env):
     except Exception as e:
         batch_update(ws, row_num, " Error", "", str(e), f"{int(time.time()-start_time)}s")
         logging.error(f"Failed to process row {row_num}: {traceback.format_exc()}")
+
+def diagnose_video_duration_issues(audio_paths, image_paths, script_blocks, video_folder):
+    """
+    Diagnostic function to help debug video duration issues.
+    Shows audio durations, script lengths, and other metrics.
+    """
+    print("\n" + "="*60)
+    print("🔍 VIDEO DURATION DIAGNOSTICS")
+    print("="*60)
+    
+    print(f"📊 Script blocks: {len(script_blocks)}")
+    print(f"🎵 Audio files: {len(audio_paths)}")
+    print(f"🖼️  Images: {len(image_paths)}")
+    
+    total_script_words = sum(len(block.split()) for block in script_blocks)
+    estimated_duration = total_script_words / 2.0  # 2 words per second
+    print(f"📝 Total script words: {total_script_words}")
+    print(f"⏱️  Estimated speaking duration: {estimated_duration:.1f} seconds ({estimated_duration/60:.1f} minutes)")
+    
+    # Check individual audio file durations
+    print(f"\n🎵 AUDIO FILE ANALYSIS:")
+    total_audio_duration = 0
+    valid_audio_count = 0
+    
+    for i, audio_path in enumerate(audio_paths):
+        if os.path.exists(audio_path):
+            try:
+                if PYDUB_AVAILABLE and AudioSegment is not None:
+                    audio = AudioSegment.from_mp3(audio_path)
+                    duration = len(audio) / 1000.0  # Convert to seconds
+                    total_audio_duration += duration
+                    valid_audio_count += 1
+                    print(f"   Block {i+1}: {duration:.2f}s - {Path(audio_path).name}")
+                else:
+                    print(f"   Block {i+1}: Cannot analyze (pydub unavailable) - {Path(audio_path).name}")
+                    valid_audio_count += 1
+            except Exception as e:
+                print(f"   Block {i+1}: ERROR - {e}")
+        else:
+            print(f"   Block {i+1}: MISSING - {audio_path}")
+    
+    if PYDUB_AVAILABLE and total_audio_duration > 0:
+        print(f"\n⏱️  Total audio duration: {total_audio_duration:.1f} seconds ({total_audio_duration/60:.1f} minutes)")
+        print(f"📊 Average audio per block: {total_audio_duration/max(1,valid_audio_count):.1f} seconds")
+    
+    # Check combined audio file
+    combined_audio_path = video_folder / "audio" / "combined_narration.mp3"
+    final_audio_path = video_folder / "audio" / "final_audio.mp3"
+    
+    if combined_audio_path.exists():
+        try:
+            if PYDUB_AVAILABLE and AudioSegment is not None:
+                combined_audio = AudioSegment.from_mp3(combined_audio_path)
+                combined_duration = len(combined_audio) / 1000.0
+                print(f"\n🎵 Combined narration: {combined_duration:.1f} seconds ({combined_duration/60:.1f} minutes)")
+            else:
+                print(f"\n🎵 Combined narration: EXISTS (cannot analyze duration without pydub)")
+        except Exception as e:
+            print(f"\n🎵 Combined narration: ERROR - {e}")
+    else:
+        print(f"\n🎵 Combined narration: MISSING")
+    
+    if final_audio_path.exists():
+        try:
+            if PYDUB_AVAILABLE and AudioSegment is not None:
+                final_audio = AudioSegment.from_mp3(final_audio_path)
+                final_duration = len(final_audio) / 1000.0
+                print(f"🎵 Final audio (with background): {final_duration:.1f} seconds ({final_duration/60:.1f} minutes)")
+            else:
+                print(f"🎵 Final audio (with background): EXISTS (cannot analyze duration without pydub)")
+        except Exception as e:
+            print(f"🎵 Final audio (with background): ERROR - {e}")
+    else:
+        print(f"🎵 Final audio (with background): MISSING")
+    
+    # Check script block lengths
+    print(f"\n📝 SCRIPT BLOCK ANALYSIS:")
+    for i, block in enumerate(script_blocks):
+        words = len(block.split())
+        estimated_time = words / 2.0
+        print(f"   Block {i+1}: {words} words (~{estimated_time:.1f}s) - {block[:50]}...")
+    
+    print("\n" + "="*60)
+    print("🔍 DIAGNOSTICS COMPLETE")
+    print("="*60 + "\n")
 
 if __name__ == "__main__":
     env = load_env()

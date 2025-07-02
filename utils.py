@@ -15,6 +15,7 @@ import pickle
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from typing import Optional
+import numpy as np
 
 # Conditional import for moviepy to handle Python 3.13 compatibility issues
 try:
@@ -349,8 +350,7 @@ def make_slideshow_video(image_paths, audio_paths, output_path):
             # Add audio to image clip
             img_clip = img_clip.set_audio(audio_clip)
             
-            # Ensure proper resolution (resize if needed)
-            img_clip = img_clip.resize(height=720)  # Standard HD height
+            # Keep original image resolution for now
             
             clips.append(img_clip)
             
@@ -476,92 +476,125 @@ def split_script_into_blocks_improved(script, block_len=300):
     
     return [b for b in final_blocks if b.strip()]
 
-def split_script_by_duration(script: str, target_duration_minutes: float, max_scene_duration: int = 20) -> list[str]:
+def split_script_by_duration(script: str, target_duration_minutes: float) -> list[str]:
     """
-    Advanced AI-powered script splitting with semantic analysis and optimization.
+    Advanced content-first script splitting using Content Intelligence and Engagement Optimization.
     
     Args:
         script: The full script text
         target_duration_minutes: Target video duration in minutes
-        max_scene_duration: Maximum duration per scene in seconds (default: 20)
-        
+    
     Returns:
-        List of script blocks optimized for content quality and timing
+        List of script blocks optimized for the target duration and maximum engagement
     """
-    print(f"🤖 Advanced AI-Powered Script Splitting")
+    print(f"🧠 Advanced Content Intelligence System")
     print(f"   Target duration: {target_duration_minutes} minutes")
-    print(f"   Max scene duration: {max_scene_duration} seconds")
+    print(f"   Method: Content-first optimization with engagement analysis")
     
     try:
-        # Import advanced features
-        from ai_scene_detector import AISceneDetector, DynamicPacingOptimizer, RetentionOptimizer
-        from semantic_analyzer import SemanticAnalyzer, ContentOptimizer
-        
         # Load environment for API key
         env = load_env()
         api_key = env.get("OPENAI_API_KEY")
         
         if not api_key:
             print("   ⚠️ No OpenAI API key found, using fallback method")
-            return _fallback_duration_splitting(script, target_duration_minutes, max_scene_duration)
+            # Use the old dynamic system as fallback
+            dynamic_max_duration = get_dynamic_max_scene_duration(
+                "mixed", "neutral", target_duration_minutes=target_duration_minutes
+            )
+            return _fallback_duration_splitting(script, target_duration_minutes, dynamic_max_duration)
         
-        # Initialize AI components
-        ai_detector = AISceneDetector(api_key)
-        semantic_analyzer = SemanticAnalyzer()
-        content_optimizer = ContentOptimizer()
-        pacing_optimizer = DynamicPacingOptimizer()
-        retention_optimizer = RetentionOptimizer()
+        # Initialize advanced systems
+        from content_intelligence import ContentIntelligence
+        from engagement_optimizer import EngagementOptimizer
         
-        # Step 1: AI-powered scene detection
-        print("   🔍 AI Scene Detection...")
-        ai_scenes = ai_detector.detect_scene_breaks(script, target_duration_minutes)
+        content_intel = ContentIntelligence(api_key)
+        engagement_optimizer = EngagementOptimizer()
         
-        # Step 2: Semantic analysis
-        print("   📊 Semantic Analysis...")
-        sentences = re.split(r'(?<=[।.!?])\s+', script.strip())
-        sentences = [s.strip() for s in sentences if s.strip()]
-        semantic_analysis = semantic_analyzer.analyze_semantic_structure(sentences)
+        # Step 1: Content Intelligence Analysis
+        print("   🧠 Content Intelligence Analysis...")
+        content_plan = content_intel.optimize_content_for_duration(script, target_duration_minutes)
         
-        # Step 3: Calculate dynamic max scene duration based on content analysis
-        content_type = semantic_analysis.get("content_type", {}).get("primary_type", "mixed")
-        emotional_arc = semantic_analysis.get("emotional_arc", {}).get("overall_arc", "balanced")
+        # Step 2: Engagement Optimization
+        if content_plan["status"] in ["optimal", "auto_fixed"]:
+            print("   📈 Engagement Optimization...")
+            engagement_data = engagement_optimizer.optimize_scenes_for_engagement(
+                content_plan["scene_texts"], 
+                {"content_type": "mixed"}  # Will be replaced with actual analysis
+            )
+            
+            # Use engagement-optimized scenes
+            optimized_scenes = []
+            for i, optimization in enumerate(engagement_data["optimized_scenes"]):
+                scene_text = content_plan["scene_texts"][i]
+                
+                # Apply engagement adjustments if needed
+                if optimization.adjustments:
+                    print(f"   📝 Scene {i+1} optimization: {optimization.optimization_type} (engagement: {optimization.engagement_score:.2f})")
+                    for adjustment in optimization.adjustments[:1]:  # Apply first suggestion
+                        print(f"      💡 {adjustment}")
+                
+                optimized_scenes.append(scene_text)
+            
+            # Print final results
+            print(f"\n📊 Content Intelligence Results:")
+            print(f"   Status: {content_plan['status']} ({content_plan['confidence']} confidence)")
+            print(f"   Method: {content_plan['method']}")
+            print(f"   Scene count: {len(optimized_scenes)}")
+            print(f"   Estimated duration: {content_plan['estimated_duration']:.1f} minutes")
+            print(f"   Engagement score: {content_plan.get('engagement_score', 0.75):.2f}")
+            print(f"   Overall engagement: {engagement_data['overall_engagement_score']:.2f}")
+            
+            # Print engagement recommendations
+            if engagement_data["engagement_recommendations"]:
+                print(f"   📈 Engagement insights:")
+                for recommendation in engagement_data["engagement_recommendations"]:
+                    print(f"      {recommendation}")
+            
+            print(f"   ✅ Advanced content optimization completed!")
+            
+            return optimized_scenes
         
-        # Use dynamic scene duration instead of hardcoded value
-        dynamic_max_duration = get_dynamic_max_scene_duration(content_type, emotional_arc)
-        print(f"   🎯 Dynamic max scene duration: {dynamic_max_duration} seconds (based on {content_type} content, {emotional_arc} emotion)")
-        
-        # Step 4: Content optimization
-        print("   ⚡ Content Optimization...")
-        optimized_scenes = content_optimizer.optimize_based_on_analysis(ai_scenes, semantic_analysis)
-        
-        # Step 5: Dynamic pacing optimization
-        print("   🎯 Pacing Optimization...")
-        for scene in optimized_scenes:
-            optimized_duration = pacing_optimizer.optimize_scene_duration(scene)
-            scene["estimated_duration"] = optimized_duration
-        
-        optimized_scenes = pacing_optimizer.adjust_for_engagement_hooks(optimized_scenes)
-        
-        # Step 6: Retention optimization
-        print("   📈 Retention Optimization...")
-        optimized_scenes = retention_optimizer.optimize_for_retention(optimized_scenes)
-        
-        # Step 7: Final validation and adjustment using dynamic duration
-        print("   ✅ Final Validation...")
-        final_scenes = _validate_and_adjust_scenes(optimized_scenes, target_duration_minutes, dynamic_max_duration)
-        
-        # Extract text from scene objects
-        scene_texts = [scene["text"] for scene in final_scenes]
-        
-        # Print analysis summary
-        _print_advanced_analysis_summary(final_scenes, semantic_analysis)
-        
-        return scene_texts
-        
+        else:
+            # Content-duration mismatch detected
+            print(f"   ⚠️ Content-duration mismatch detected:")
+            print(f"   {content_plan['optimization_notes']}")
+            
+            # Still try engagement optimization on best-effort scenes
+            if content_plan.get("scene_texts"):
+                print("   📈 Applying engagement optimization to available scenes...")
+                engagement_data = engagement_optimizer.optimize_scenes_for_engagement(
+                    content_plan["scene_texts"], 
+                    {"content_type": "mixed"}
+                )
+                
+                print(f"   Engagement score: {engagement_data['overall_engagement_score']:.2f}")
+                return content_plan["scene_texts"]
+            else:
+                # Ultimate fallback
+                print("   🔄 Using dynamic fallback method...")
+                dynamic_max_duration = get_dynamic_max_scene_duration(
+                    "mixed", "neutral", target_duration_minutes=target_duration_minutes
+                )
+                return _fallback_duration_splitting(script, target_duration_minutes, dynamic_max_duration)
+    
+    except ImportError as e:
+        print(f"   ⚠️ Advanced systems not available: {e}")
+        print("   🔄 Using dynamic fallback method...")
+        # Use the improved dynamic system as fallback
+        dynamic_max_duration = get_dynamic_max_scene_duration(
+            "mixed", "neutral", target_duration_minutes=target_duration_minutes
+        )
+        return _fallback_duration_splitting(script, target_duration_minutes, dynamic_max_duration)
+    
     except Exception as e:
-        print(f"   ⚠️ Advanced features failed: {e}")
-        print("   🔄 Falling back to basic method...")
-        return _fallback_duration_splitting(script, target_duration_minutes, max_scene_duration)
+        print(f"   ⚠️ Advanced optimization failed: {e}")
+        print("   🔄 Using dynamic fallback method...")
+        # Use the improved dynamic system as fallback
+        dynamic_max_duration = get_dynamic_max_scene_duration(
+            "mixed", "neutral", target_duration_minutes=target_duration_minutes
+        )
+        return _fallback_duration_splitting(script, target_duration_minutes, dynamic_max_duration)
 
 def _fallback_duration_splitting(script: str, target_duration_minutes: float, max_scene_duration: int) -> list[str]:
     """
@@ -964,7 +997,8 @@ def generate_viral_scene_images(script_text: str, video_folder: str, env: dict, 
     prompts = generate_metaphor_rich_prompts(
         script_text=script_text,
         num_scenes=len(blocks),
-        openai_api_key=env["OPENAI_API_KEY"]
+        openai_api_key=env["OPENAI_API_KEY"],
+        script_blocks=blocks  # FIXED: Pass the blocks we created
     )
 
     for i, (block, prompt) in enumerate(zip(blocks, prompts)):
@@ -1114,9 +1148,9 @@ def main():
         pickle.dump(creds, token)
     print(f"✅ token.pickle created! YouTube upload is now enabled.")
 
-def get_dynamic_max_scene_duration(content_type: str, emotional_tone: str, user_feedback: Optional[dict] = None) -> int:
+def get_dynamic_max_scene_duration(content_type: str, emotional_tone: str, user_feedback: Optional[dict] = None, target_duration_minutes: float = 5.0) -> int:
     """
-    Calculate max scene duration dynamically based on content type, emotional tone, and user feedback.
+    Calculate max scene duration dynamically based on content type, emotional tone, video duration, and user feedback.
     Returns an integer duration in seconds.
     """
     # Base values by content type
@@ -1126,6 +1160,7 @@ def get_dynamic_max_scene_duration(content_type: str, emotional_tone: str, user_
         'motivation': 15,
         'mixed': 16
     }.get(content_type, 15)
+    
     # Adjust for emotion
     emotion_factor = {
         'calm': 1.2,
@@ -1134,12 +1169,26 @@ def get_dynamic_max_scene_duration(content_type: str, emotional_tone: str, user_
         'reflection': 1.3,
         'neutral': 1.0
     }.get(emotional_tone, 1.0)
+    
     # Adjust for user feedback if available
     if user_feedback and isinstance(user_feedback, dict):
         base *= (1 + float(user_feedback.get('duration_adjustment', 0)))
-    # Clamp to reasonable range
+    
+    # Calculate base duration
     duration = int(base * emotion_factor)
-    duration = max(6, min(duration, 40))  # never less than 6s, never more than 40s
+    
+    # Dynamic maximum based on target video duration
+    # For longer videos, allow longer scene durations to avoid too many scenes
+    if target_duration_minutes <= 3:
+        max_duration = 25  # Short videos: keep scenes snappy
+    elif target_duration_minutes <= 10:
+        max_duration = 40  # Medium videos: moderate scene length
+    else:
+        max_duration = 60  # Long videos: allow longer scenes
+    
+    # Clamp to reasonable range with dynamic maximum
+    duration = max(6, min(duration, max_duration))
+    
     return duration
 
 def create_captioned_scene(image_path, audio_path, caption_text, output_path, language="Hindi"):
@@ -1188,6 +1237,206 @@ def create_captioned_scene(image_path, audio_path, caption_text, output_path, la
     final = CompositeVideoClip([img_clip, txt_clip])
     final.write_videofile(str(output_path), fps=24, codec="libx264", audio_codec="aac")
     return output_path
+
+def create_cinematic_scene_clip(wide_img, close_img, duration, movement, hold_duration, move_duration, crossfade_duration, closeup_duration):
+    from moviepy.editor import ImageClip, CompositeVideoClip
+    def ease_in(t, start=0.0, end=1.0, duration=move_duration):
+        progress = min(max((t - hold_duration) / duration, 0), 1)
+        return start + (end - start) * (progress ** 2)
+    def make_cinematic_clip(img_path, movement, duration, hold_duration, move_duration):
+        img_clip = ImageClip(img_path).set_duration(duration)
+        def make_frame(get_frame, t):
+            if t < hold_duration:
+                return get_frame(0)
+            if movement == "zoom_in":
+                factor = ease_in(t, 1.0, 1.13, move_duration)
+                return img_clip.resize(factor).get_frame(t)
+            elif movement == "zoom_out":
+                factor = ease_in(t, 1.13, 1.0, move_duration)
+                return img_clip.resize(factor).get_frame(t)
+            else:
+                return img_clip.get_frame(t)
+        return img_clip.fl(make_frame, apply_to=['mask'])
+    clip_wide = make_cinematic_clip(wide_img, movement, duration, hold_duration, move_duration)
+    clip_close = ImageClip(close_img).set_duration(closeup_duration)
+    final_clip = CompositeVideoClip([
+        clip_wide.crossfadeout(crossfade_duration).set_start(0),
+        clip_close.set_start(duration - crossfade_duration).crossfadein(crossfade_duration)
+    ], size=clip_wide.size).set_duration(duration + closeup_duration - crossfade_duration)
+    return final_clip
+
+def create_scene_based_slideshow_video(image_paths, audio_paths, output_path, script_blocks=None, topic=None, tone=None, openai_api_key=None):
+    if not MOVIEPY_AVAILABLE or AudioFileClip is None or ImageClip is None or concatenate_videoclips is None:
+        print("⚠️ moviepy not available, cannot create scene-based slideshow video.")
+        return None
+    if script_blocks is None or topic is None or tone is None or openai_api_key is None:
+        print("❌ script_blocks, topic, tone, and openai_api_key are required for cinematic slideshow.")
+        return None
+    if len(script_blocks) != len(audio_paths):
+        print(f"❌ Mismatch: {len(script_blocks)} script blocks vs {len(audio_paths)} audio files")
+        return None
+    print(f"🎬 Creating cinematic scene-based slideshow video with {len(script_blocks)} scenes")
+    clips = []
+    total_duration = 0
+    output_folder = os.path.dirname(output_path) or "."
+    # Alternate only between zoom_in and zoom_out for variety, no pan
+    movement_types = ["zoom_in", "zoom_out"]
+    for i, (block, audio_path) in enumerate(zip(script_blocks, audio_paths)):
+        try:
+            print(f"   Processing cinematic scene {i+1}/{len(script_blocks)}")
+            audio_clip = AudioFileClip(audio_path)
+            scene_duration = audio_clip.duration
+            total_duration += scene_duration
+            wide_img = os.path.join(output_folder, f"scene_{i+1:02d}_wide.png")
+            close_img = os.path.join(output_folder, f"scene_{i+1:02d}_close.png")
+            hold_duration = min(1.5, max(0.5, scene_duration * 0.15))
+            move_duration = scene_duration - hold_duration
+            crossfade_duration = min(2.0, max(1.0, scene_duration * 0.25))
+            closeup_duration = min(3.0, max(1.5, scene_duration * 0.3))
+            movement = movement_types[i % len(movement_types)]
+            scene_clip = create_cinematic_scene_clip(
+                wide_img=wide_img,
+                close_img=close_img,
+                duration=scene_duration,
+                movement=movement,
+                hold_duration=hold_duration,
+                move_duration=move_duration,
+                crossfade_duration=crossfade_duration,
+                closeup_duration=closeup_duration
+            )
+            scene_clip = scene_clip.set_audio(audio_clip)
+            clips.append(scene_clip)
+        except Exception as e:
+            print(f"❌ Error processing cinematic scene {i+1}: {e}")
+            continue
+    if not clips:
+        print("❌ No valid cinematic scenes created")
+        return None
+    print(f"✅ Created {len(clips)} cinematic scenes, total duration: {total_duration:.2f} seconds ({total_duration/60:.2f} minutes)")
+    try:
+        print("🔗 Concatenating cinematic scene clips...")
+        final_clip = concatenate_videoclips(clips, method="compose")
+        print(f"📹 Writing final cinematic video to: {output_path}")
+        final_clip.write_videofile(
+            str(output_path),
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            bitrate="8000k",
+            verbose=False,
+            logger=None
+        )
+        for clip in clips:
+            clip.close()
+        final_clip.close()
+        if Path(output_path).exists():
+            file_size = Path(output_path).stat().st_size
+            print(f"✅ Cinematic video created successfully!")
+            print(f"   File: {Path(output_path).name}")
+            print(f"   Size: {file_size // (1024*1024)}MB")
+            print(f"   Duration: {total_duration:.2f} seconds")
+            return output_path
+        else:
+            print("❌ Cinematic video file was not created")
+            return None
+    except Exception as e:
+        print(f"❌ Error creating final cinematic video: {e}")
+        for clip in clips:
+            try:
+                clip.close()
+            except:
+                pass
+        return None
+
+def create_single_audio_slideshow_video(image_paths, combined_audio_path, output_path):
+    """
+    Create a slideshow video from multiple images with one combined audio track.
+    Each image will be shown for an equal duration based on the total audio length.
+    """
+    if not MOVIEPY_AVAILABLE or AudioFileClip is None or ImageClip is None or concatenate_videoclips is None:
+        print("⚠️ moviepy not available, cannot create single-audio slideshow video.")
+        return None
+    
+    if not image_paths:
+        print("❌ No images provided for video creation")
+        return None
+    
+    print(f"🎬 Creating single-audio slideshow video with {len(image_paths)} images")
+    
+    try:
+        # Load the combined audio to get total duration
+        audio_clip = AudioFileClip(combined_audio_path)
+        total_audio_duration = audio_clip.duration
+        
+        # Calculate duration per image
+        duration_per_image = total_audio_duration / len(image_paths)
+        
+        print(f"   Total audio duration: {total_audio_duration:.2f} seconds")
+        print(f"   Duration per image: {duration_per_image:.2f} seconds")
+        
+        clips = []
+        
+        # Create image clips with equal durations
+        for i, img_path in enumerate(image_paths):
+            try:
+                print(f"   Processing image {i+1}/{len(image_paths)}: {Path(img_path).name}")
+                
+                # Create image clip for calculated duration
+                img_clip = ImageClip(img_path, duration=duration_per_image)
+                
+                # Keep original image resolution
+                
+                clips.append(img_clip)
+                
+            except Exception as e:
+                print(f"❌ Error processing image {i+1}: {e}")
+                continue
+        
+        if not clips:
+            print("❌ No valid image clips created")
+            return None
+        
+        # Concatenate all image clips
+        print("🔗 Concatenating image clips...")
+        video_clip = concatenate_videoclips(clips, method="compose")
+        
+        # Add the combined audio to the video
+        final_clip = video_clip.set_audio(audio_clip)
+        
+        # Write final video
+        print(f"📹 Writing final video to: {output_path}")
+        final_clip.write_videofile(
+            str(output_path), 
+            fps=24, 
+            codec="libx264", 
+            audio_codec="aac",
+            bitrate="8000k",
+            verbose=False,
+            logger=None
+        )
+        
+        # Close clips to free memory
+        for clip in clips:
+            clip.close()
+        video_clip.close()
+        final_clip.close()
+        audio_clip.close()
+        
+        # Verify the created video
+        if Path(output_path).exists():
+            file_size = Path(output_path).stat().st_size
+            print(f"✅ Single-audio slideshow video created successfully!")
+            print(f"   File: {Path(output_path).name}")
+            print(f"   Size: {file_size // (1024*1024)}MB")
+            print(f"   Duration: {total_audio_duration:.2f} seconds ({total_audio_duration/60:.1f} minutes)")
+            return output_path
+        else:
+            print("❌ Video file was not created")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Error creating single-audio slideshow video: {e}")
+        return None
 
 if __name__ == "__main__":
     main()

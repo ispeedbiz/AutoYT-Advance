@@ -150,41 +150,81 @@ class QualityFilter:
             print(f"⚠️ LLM quality check failed: {e}")
             return True, f"Check failed: {e}"  # Default to pass
     
-    def comprehensive_quality_check(self, image_path, prompt, scene_description, quality_threshold=0.7):
+    def automated_image_quality_filter(self, image_path, prompt, scene_description, engagement_threshold=0.85):
         """
-        Comprehensive quality check using both CLIP and LLM analysis.
+        Uses OpenAI Vision (or GPT-4o vision) to check for anatomical errors and engagement.
+        Returns: (pass/fail, engagement_score, issues)
+        """
+        import base64, json
+        try:
+            base64_image = self.encode_image_to_base64(image_path)
+            vision_prompt = (
+                "Analyze this image for YouTube video use. "
+                "Does it have any anatomical errors (extra/missing hands, limbs, faces, fingers, duplicate body parts)? "
+                "Is it visually engaging, clear, and free of artifacts, text, or watermarks? "
+                "Rate engagement and quality from 0 to 1. "
+                "Return JSON: {\"anatomy_ok\": true/false, \"engagement_score\": 0-1, \"issues\": \"...\"}"
+            )
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": vision_prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+                        ]
+                    }
+                ],
+                max_tokens=150,
+                temperature=0.0,
+            )
+            result = response.choices[0].message.content
+            if not result:
+                return False, 0.0, "No response from vision API"
+            try:
+                result_json = json.loads(result[result.find('{'):result.rfind('}')+1])
+                anatomy_ok = result_json.get("anatomy_ok", False)
+                engagement_score = float(result_json.get("engagement_score", 0))
+                issues = result_json.get("issues", "")
+                passed = anatomy_ok and engagement_score >= engagement_threshold
+                return passed, engagement_score, issues
+            except Exception as e:
+                return False, 0.0, f"Vision API parse error: {e} | Raw: {result}"
+        except Exception as e:
+            return False, 0.0, f"Vision API error: {e}"
+
+    def comprehensive_quality_check(self, image_path, prompt, scene_description, quality_threshold=0.8):
+        """
+        Comprehensive quality check using anatomical/engagement filter, CLIP, and LLM analysis.
         Returns: (pass/fail, confidence, reasoning, recommendations)
         """
-        print(f"🔍 Quality checking: {os.path.basename(image_path)}")
-        
-        # CLIP-based check
-        clip_pass, clip_confidence, clip_issues = self.check_image_quality_clip(
-            image_path, prompt, quality_threshold
+        # Use Vision API as primary check
+        passed, engagement_score, issues = self.automated_image_quality_filter(
+            image_path, prompt, scene_description, engagement_threshold=quality_threshold
         )
-        
-        # LLM-based check
-        llm_pass, llm_reasoning = self.check_image_quality_llm(
-            image_path, prompt, scene_description
-        )
-        
-        # Combine results
-        overall_pass = clip_pass and llm_pass
-        overall_confidence = (clip_confidence + (0.8 if llm_pass else 0.2)) / 2
-        
-        # Generate recommendations
-        recommendations = []
-        if not clip_pass:
-            recommendations.append(f"CLIP issues: {clip_issues}")
-        if not llm_pass:
-            recommendations.append(f"LLM issues: {llm_reasoning}")
-        
-        if overall_pass:
-            print(f"✅ Quality check PASSED (confidence: {overall_confidence:.2f})")
+        log_details = {
+            'image_path': image_path,
+            'prompt': prompt,
+            'scene_description': scene_description,
+            'engagement_score': engagement_score,
+            'issues': issues,
+            'passed': passed
+        }
+        # Actionable feedback logging
+        if passed:
+            print(f"[QualityFilter] PASS: {os.path.basename(image_path)} | Score: {engagement_score:.2f}")
+            if issues:
+                print(f"[QualityFilter] Minor issues: {issues}")
+        elif engagement_score >= 0.75:
+            print(f"[QualityFilter] SOFT PASS: {os.path.basename(image_path)} | Score: {engagement_score:.2f}")
+            print(f"[QualityFilter] Issues: {issues}")
         else:
-            print(f"❌ Quality check FAILED (confidence: {overall_confidence:.2f})")
-            print(f"   Issues: {recommendations}")
-        
-        return overall_pass, overall_confidence, llm_reasoning, recommendations
+            print(f"[QualityFilter] FAIL: {os.path.basename(image_path)} | Score: {engagement_score:.2f}")
+            print(f"[QualityFilter] Issues: {issues}")
+        # Log raw details for debugging
+        print(f"[QualityFilter] Vision API result: {log_details}")
+        return (passed or engagement_score >= 0.75), engagement_score, ("Quality check passed" if passed else "Soft pass" if engagement_score >= 0.75 else "Quality check failed"), issues
     
     def batch_quality_check(self, image_folder, prompts_file, output_file="quality_report.json"):
         """

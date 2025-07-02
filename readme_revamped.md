@@ -1,8 +1,8 @@
-# AutoYT-Advance
+# AutoYT‑Advance
 
-**Ultra-Intelligent YouTube Automation Pipeline**
+**Ultra‑Intelligent YouTube Automation Pipeline**
 
-Create cinema-quality videos in minutes—fully automated, cost-efficient, and scalable.
+Create cinema‑quality videos in minutes—fully automated, cost‑efficient, and scalable.
 
 ---
 
@@ -13,7 +13,7 @@ Create cinema-quality videos in minutes—fully automated, cost-efficient, and s
 3. Architecture & Folder Layout
 4. System Requirements
 5. Installation & First Run
-6. Day-to-Day Usage
+6. Day‑to‑Day Usage
 7. Troubleshooting Guide
 8. Cost Breakdown
 9. Testing & Validation
@@ -23,9 +23,9 @@ Create cinema-quality videos in minutes—fully automated, cost-efficient, and s
 
 ## 1. Quick Overview
 
-- **What it is:** 100  % automated pipeline that writes scripts, generates images, narrates, edits, and uploads YouTube videos.
-- **Why it matters:** Cuts production cost from **₹8,000+** to **₹50–120** per video and reduces delivery time from days to **≈15 min**.
-- **Who it is for:** Content creators, educators, and businesses that want consistent, high-quality output without hiring a full studio.
+- **What it is:** 100  % automated pipeline that writes scripts, generates images, narrates, edits, and uploads YouTube videos.
+- **Why it matters:** Cuts production cost from **₹8,000+** to **₹50–120** per video and reduces delivery time from days to **≈15 min**.
+- **Who it is for:** Content creators, educators, and businesses that want consistent, high‑quality output without hiring a full studio.
 
 ---
 
@@ -42,23 +42,23 @@ Create cinema-quality videos in minutes—fully automated, cost-efficient, and s
 
 ### 2.2 Visual & Audio Engine
 
-- **ComfyUI + SDXL** — 2 K+ Pixar-style images with perfect visual consistency.
+- **ComfyUI + SDXL** — 2 K+ Pixar‑style images with perfect visual consistency.
 - **Dynamic Negative-Prompt Builder (NEW)** — Auto-adds context-aware negatives to reduce AI artefacts (extra limbs, blur, etc.).
 - **ElevenLabs TTS** — Natural Hindi / English voices.
 - **Smart Music Mixer** — Picks background tracks and balances volume automatically based on emotional arc.
-- **Caption Builder** — Burned-in bilingual subtitles using ImageMagick.
+- **Caption Builder** — Burned‑in bilingual subtitles using ImageMagick.
 
 ### 2.3 Automation & Integrations
 
 - **Google Sheets** — One row = one video; status updates in real time.
-- **YouTube Data API** — One-click upload with title, description, tags, and scheduled publish time.
-- **Systemd / PM2 templates** for hands-free 24×7 operation.
+- **YouTube Data API** — One‑click upload with title, description, tags, and scheduled publish time.
+- **Systemd / PM2 templates** for hands‑free 24×7 operation.
 
 ### 2.4 Quality Control
 
-- Four-level fallback for every critical step.
+- Four‑level fallback for every critical step.
 - Detailed logs and feedback files inside each video folder.
-- 100 % test coverage for content intelligence and engagement modules.
+- 100 % test coverage for content intelligence and engagement modules.
 
 ### 2.5 Quality & Self-Healing (NEW)
 
@@ -99,8 +99,8 @@ Youtube_auto/
 ├─ content_intelligence.py # Scene & duration logic
 ├─ engagement_optimizer.py # Retention logic
 ├─ comfyui_integration/    # Image generation helpers
-├─ videos/                 # Output (one sub-folder per video)
-├─ backgrounds/            # Royalty-free music
+├─ videos/                 # Output (one sub‑folder per video)
+├─ backgrounds/            # Royalty‑free music
 └─ ...                     # See full tree in docs/
 ```
 
@@ -151,7 +151,7 @@ Full step-by-step guide in **[`docs/GITHUB_SETUP.md`](docs/GITHUB_SETUP.md)**.
    ```bash
    cp env.example .env  # then edit .env
    ```
-3. **Install & launch ComfyUI:** (see docs/comfyui_setup.md)
+3. **Install & launch ComfyUI:** (see docs/comfyui\_setup.md)
 4. **Verify setup:**
    ```bash
    python verify_setup.py
@@ -174,13 +174,13 @@ Read **[`docs/COMFYUI_SETUP.md`](docs/COMFYUI_SETUP.md)** for GPU optimisation, 
 
 ---
 
-## 6. Day-to-Day Usage
+## 6. Day‑to‑Day Usage
 
 | Task              | Command                                                 | Notes                                                |
 | ----------------- | ------------------------------------------------------- | ---------------------------------------------------- |
 | Run pipeline      | `python main.py`                                        | Reads next row marked **🕓 Waiting** in Google Sheet |
 | Manual topic      | `python main.py --topic "Stoic Quotes" --duration 2m`   | Bypasses Sheet                                       |
-| Regenerate images | `python regenerate_images.py --video 2025-07-02_123456` | Uses saved prompts                                   |
+| Regenerate images | `python regenerate_images.py --video 2025‑07‑02_123456` | Uses saved prompts                                   |
 | Upload only       | `python upload_only.py --video <folder>`                | Skip rendering                                       |
 
 ---
@@ -190,11 +190,11 @@ Read **[`docs/COMFYUI_SETUP.md`](docs/COMFYUI_SETUP.md)** for GPU optimisation, 
 ### ComfyUI errors
 
 - **Symptoms:** `Connection refused`, blank images.\
-  **Fix:** Check if ComfyUI is running on port 8188 and model file exists in `checkpoints/`.
+  **Fix:** Check if ComfyUI is running on port 8188 and model file exists in `checkpoints/`.
 
 ### moviepy import
 
-- Use exactly `moviepy==1.0.3` on Python 3.11. Older or newer combos may fail.
+- Use exactly `moviepy==1.0.3` on Python 3.11. Older or newer combos may fail.
 
 ### Vision-GPT rejects images
 
@@ -215,16 +215,16 @@ Full FAQ lives in `docs/troubleshooting.md`.
 
 ---
 
-## 8. Cost Breakdown (2-min video)
+## 8. Cost Breakdown (2‑min video)
 
 | Element                               | Cost (USD)   |
 | ------------------------------------- | ------------ |
-| OpenAI GPT-4o                         | \$0.20       |
+| OpenAI GPT‑4o                         | \$0.20       |
 | ElevenLabs TTS                        | \$0.25       |
 | DALL·E Thumbnail                      | \$0.04       |
 | Local compute                         | \$0.10       |
-| **Total**                             | **≈ \$0.60** |
-| *Traditional studio cost: \$100-500.* |              |
+| **Total**                             | **≈ \$0.60** |
+| *Traditional studio cost: \$100‑500.* |              |
 
 ---
 
@@ -255,8 +255,9 @@ Outputs audio/image duration tables and pacing warnings.
 
 > Made with dedication by the **Back to Zero** team to empower Indian creators.
 
-**Connect with the Creator:**
+ **\*\*Connect with the Creator:\*\***
 
-- 👔 **LinkedIn**: [Jagdish Lade](https://www.linkedin.com/in/jagdishlade/)
-- 🎥 **YouTube Channel**: [Subscribe & Support](https://www.youtube.com/@JagdishLade)
+\- 👔 **\*\*LinkedIn\*\***: [Jagdish Lade]\([https://www.linkedin.com/in/jagdishlade/](https://www.linkedin.com/in/jagdishlade/))
+
+\- 🎥 **\*\*YouTube Channel\*\***: [Subscribe & Support]\([https://www.youtube.com/@JagdishLade](https://www.youtube.com/@JagdishLade))
 
